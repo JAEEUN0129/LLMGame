@@ -12,10 +12,9 @@ import os
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
 # -----------------------------
-# AI 그림 평가 함수 (수정)
+# AI 그림 평가 함수
 # -----------------------------
 def generate_feedback(description, img_bytes):
-    # 이미지 base64 인코딩
     buffered = io.BytesIO()
     img_bytes.save(buffered, format="PNG")
     img_str = base64.b64encode(buffered.getvalue()).decode()
@@ -23,10 +22,14 @@ def generate_feedback(description, img_bytes):
     prompt = f"""
 당신은 그림 평가 전문가입니다.
 사용자가 '{description}'를 그렸습니다.
-- 그림의 색상, 구성, 요소를 고려하여 0~10점 사이로 평가하고,
-- 점수가 낮은 이유와 개선 방법을 구체적으로 설명해주세요.
-점수와 피드백을 JSON으로 반환해주세요.
-예시: {{"score":8, "comment":"색감을 조금 더 진하게 해보세요."}}
+
+- 그림의 **색상**: 색상이 잘 표현되었는지, 색감이 조화로운지 평가해주세요.
+- 그림의 **형태**: 형태가 명확하게 그려졌는지, 흐릿하거나 모호하지 않은지 평가해주세요.
+- 그림의 **구성**: 그림의 전체적인 구성이 자연스러운지, 각 요소가 잘 배치되었는지 평가해주세요.
+- **상세도**: 세부 사항이 얼마나 잘 그려졌는지 평가해주세요. 너무 단순하거나 자세히 그려졌는지 체크해주세요.
+- **주제와 일치 여부**: 주제에 맞게 그려졌는지, 사용자가 그린 그림이 주어진 설명과 일치하는지 평가해주세요.
+
+점수는 0~10점 사이로 매기세요. 각 항목에 대해 간략한 설명을 추가해주세요.
 """
 
     try:
@@ -40,29 +43,16 @@ def generate_feedback(description, img_bytes):
             max_tokens=150
         )
         result_text = response.choices[0].message.content.strip()
-
-        # JSON 파싱 시도
         import json
-        try:
-            result = json.loads(result_text)
-            score = int(result.get("score", 5))  # score 없으면 5점
-            comment = result.get("comment", "AI가 코멘트를 제공하지 않았습니다.")
-        except json.JSONDecodeError:
-            # JSON 파싱 실패 시 fallback
-            score = random.randint(3, 8)  # 테스트용 랜덤 점수
-            comment = "AI가 JSON 형식으로 응답하지 않아 임의 점수로 평가했습니다."
-
-        # 점수 범위 제한
-        score = max(0, min(10, score))
+        result = json.loads(result_text)
+        score = int(result.get("score", 5))  # score 없으면 5점
+        comment = result.get("comment", "AI가 코멘트를 제공하지 않았습니다.")
         return score, comment
-
     except Exception as e:
-        # 호출 실패 시 fallback
-        print("AI 호출 오류:", e)
-        score = random.randint(3, 8)
+        print(f"Error: {e}")
+        score = random.randint(3, 8)  # 테스트용 랜덤 점수
         comment = "AI 평가 실패, 임의 점수로 평가했습니다."
         return score, comment
-
 
 # -----------------------------
 # 햄버거 레시피 정의
@@ -78,15 +68,15 @@ burger_recipes = {
 # -----------------------------
 # 세션 상태 초기화
 # -----------------------------
-state_vars = ["game_started","start_time","order","buttons_created",
-              "current_stack","selected_ingredient","total_score","customers_served"]
+state_vars = ["game_started", "start_time", "order", "buttons_created",
+              "current_stack", "selected_ingredient", "total_score", "customers_served"]
 for var in state_vars:
     if var not in st.session_state:
         if var == "game_started":
             st.session_state[var] = False
-        elif var in ["buttons_created","current_stack"]:
+        elif var in ["buttons_created", "current_stack"]:
             st.session_state[var] = []
-        elif var in ["total_score","customers_served"]:
+        elif var in ["total_score", "customers_served"]:
             st.session_state[var] = 0
         else:
             st.session_state[var] = None
@@ -103,9 +93,12 @@ st.markdown("""
 1. '손님 주문 받기' 버튼을 눌러 랜덤 주문을 받습니다.
 2. 주문 재료를 선택하고 그림판에 그려서 AI 평가 받기 🎨
 3. 점수가 충분하면 재료 버튼 생성 완료! (그림 점수가 높을수록 손님 만족도가 높아요!🔥)
-4. 버튼을 눌러 햄버거 쌓기 🍔
+4. 버튼을 눌러 햄버거 쌓기 🍔 (처음과 끝은 항상 빵이 나와야 해요!🥖)
 5. '손님에게 햄버거 드리기' 클릭 시 손님 만족도가 나오고, 한 번 더 클릭하면 다음 주문이 들어옵니다 🎉
 6. 제한 시간 3분 내 최대한 많은 손님 만족시키기! 🕒
+            
+✔️ 빵에서 빵으로 안끝나면 다시 재료를 쌓아야 해요!\n
+✔️ 모든 재료가 들어가지 않으면 주문이 취소돼요!
 """)
 
 # -----------------------------
@@ -139,9 +132,9 @@ if time_left <= 0:
         for var in state_vars:
             if var == "game_started":
                 st.session_state[var] = False
-            elif var in ["buttons_created","current_stack"]:
+            elif var in ["buttons_created", "current_stack"]:
                 st.session_state[var] = []
-            elif var in ["total_score","customers_served"]:
+            elif var in ["total_score", "customers_served"]:
                 st.session_state[var] = 0
             else:
                 st.session_state[var] = None
@@ -153,12 +146,8 @@ if time_left <= 0:
 # -----------------------------
 remaining_ingredients = []
 for ing in burger_recipes[st.session_state.order]:
-    if ing == "치즈" and st.session_state.order == "더블치즈버거":
-        if "치즈" not in st.session_state.buttons_created:
-            remaining_ingredients.append("치즈")
-    else:
-        if ing not in st.session_state.buttons_created:
-            remaining_ingredients.append(ing)
+    if ing not in st.session_state.buttons_created:
+        remaining_ingredients.append(ing)
 
 if remaining_ingredients:
     st.write("🎨 그릴 재료를 선택하세요.")
@@ -187,14 +176,10 @@ if remaining_ingredients:
             score, comment = generate_feedback(st.session_state.selected_ingredient, img)
             st.session_state.last_score = score
             st.write(f"AI 평가 점수: {score} / 10")
-            
+            st.write(f"AI 피드백: {comment}")
 
             if score >= 4:
-                # 더블치즈 특수 처리
-                if st.session_state.order == "더블치즈버거" and st.session_state.selected_ingredient == "치즈":
-                    st.session_state.buttons_created.extend(["치즈","치즈"])
-                else:
-                    st.session_state.buttons_created.append(st.session_state.selected_ingredient)
+                st.session_state.buttons_created.append(st.session_state.selected_ingredient)
                 st.success(f"{st.session_state.selected_ingredient} 버튼 생성 완료!")
             else:
                 st.warning("점수가 부족하여 버튼 생성 실패!")
@@ -224,10 +209,12 @@ if st.button("🎉 손님에게 햄버거 드리기"):
     elif st.session_state.current_stack[0] != "빵" or st.session_state.current_stack[-1] != "빵":
         st.warning("햄버거는 항상 빵으로 시작하고 끝나야 합니다!")
     else:
+        # 재료가 주문과 일치하는지 확인
         included = all(item in st.session_state.current_stack[1:-1] for item in correct_stack[1:-1])
+        
         if included:
-            # 그림 점수 기반 만족도 반영
-            satisfaction = int(st.session_state.last_score * 2 + len(st.session_state.current_stack)*2)
+            # 점수 계산: 그림 점수와 햄버거 완성도 반영
+            satisfaction = int(st.session_state.last_score * 2 + len(st.session_state.current_stack) * 2)
             st.session_state.total_score += satisfaction
             st.session_state.customers_served += 1
             st.success(f"손님 만족도 점수: {satisfaction} 🎉")
